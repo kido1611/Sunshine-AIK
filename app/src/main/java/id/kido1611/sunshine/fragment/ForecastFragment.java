@@ -1,9 +1,11 @@
 package id.kido1611.sunshine.fragment;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
 import android.text.format.Time;
@@ -43,6 +45,8 @@ import id.kido1611.sunshine.SettingsActivity;
  */
 public class ForecastFragment extends Fragment {
 
+    private static boolean DEBUG = false;
+
     public ForecastFragment(){
 
     }
@@ -58,17 +62,7 @@ public class ForecastFragment extends Fragment {
     public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View rootView = inflater.inflate(R.layout.fragment_main, container, false);
 
-        String[] data = {
-                "Mon 6/23 - Sunny - 31/27",
-                "Mon 6/24 - Sunny - 31/27",
-                "Mon 6/25 - Sunny - 31/27",
-                "Mon 6/26 - Sunny - 31/27",
-                "Mon 6/27 - Sunny - 31/27",
-        };
-
-        List<String> weekForecast = new ArrayList<String>(Arrays.asList(data));
-        mForecastAdapter = new ArrayAdapter<String>(getActivity(), R.layout.list_item_forecast, R.id.list_item_forecast_textview);
-        mForecastAdapter.addAll(weekForecast);
+        mForecastAdapter = new ArrayAdapter<String>(getActivity(), R.layout.list_item_forecast, R.id.list_item_forecast_textview, new ArrayList<String>());
 
         ListView listView = (ListView)rootView.findViewById(R.id.listview_forecast);
         listView.setAdapter(mForecastAdapter);
@@ -94,15 +88,47 @@ public class ForecastFragment extends Fragment {
     public boolean onOptionsItemSelected(MenuItem item) {
         int id = item.getItemId();
         if(id==R.id.action_refresh){
-            FetchWeatherTask weatherTask = new FetchWeatherTask();
-            weatherTask.execute("94043");
+            updateWeather();
             return true;
         }else if(id==R.id.action_settings){
             Intent i = new Intent(getActivity(), SettingsActivity.class);
             startActivity(i);
             return true;
+        }else if(id==R.id.action_map){
+            openPreferredLocationMap();
+            return true;
         }
         return super.onOptionsItemSelected(item);
+    }
+
+    private void openPreferredLocationMap(){
+        SharedPreferences sharedPrefs = PreferenceManager.getDefaultSharedPreferences(getActivity());
+        String location = sharedPrefs.getString(getString(R.string.pref_location_key), getString(R.string.pref_location_default));
+
+        Uri geoLocation = Uri.parse("geo:0,0?").buildUpon()
+                .appendQueryParameter("q", location)
+                .build();
+
+        Intent i = new Intent(Intent.ACTION_VIEW);
+        i.setData(geoLocation);
+
+        if(i.resolveActivity(getActivity().getPackageManager())!=null){
+            startActivity(i);
+        }
+    }
+
+    private void updateWeather(){
+        FetchWeatherTask weatherTask = new FetchWeatherTask();
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getActivity());
+        String location = prefs.getString(getString(R.string.pref_location_key), getString(R.string.pref_location_default));
+        Toast.makeText(getActivity(), "lokasi : "+location, Toast.LENGTH_SHORT).show();
+        weatherTask.execute(location);
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        updateWeather();
     }
 
     public class FetchWeatherTask extends AsyncTask<String, Void, String[]>{
@@ -112,7 +138,11 @@ public class ForecastFragment extends Fragment {
             return shortenedDateFormat.format(time);
         }
 
-        private String formatHighLows(double high, double low){
+        private String formatHighLows(double high, double low, String unitType){
+            if(unitType.equals(getString(R.string.pref_units_imperial))){
+                high = (high  *1.8)+32;
+                low = (low *1.8)+32;
+            }
             long roundedHigh = Math.round(high);
             long roundedLow = Math.round(low);
 
@@ -127,16 +157,24 @@ public class ForecastFragment extends Fragment {
             final String OWM_MAX = "max";
             final String OWM_MIN = "min";
             final String OWM_DESCRIPTION = "main";
+            final String OWM_CITY = "city";
+            final String OWM_CITY_NAME = "name";
 
             JSONObject forecastJson = new JSONObject(forecastJsonStr);
             JSONArray weatherArray = forecastJson.getJSONArray(OWM_LIST);
+
+            JSONObject cityObject = forecastJson.getJSONObject(OWM_CITY);
+            String cityName = cityObject.getString(OWM_CITY_NAME);
 
             Time dayTime = new Time();
             dayTime.setToNow();
 
             int julianStartDay = Time.getJulianDay(System.currentTimeMillis(), dayTime.gmtoff);
-
             dayTime = new Time();
+
+            SharedPreferences sharefPrefs = PreferenceManager.getDefaultSharedPreferences(getActivity());
+            String unitType = sharefPrefs.getString(getString(R.string.pref_units_key), getString(R.string.pref_units_metric));
+
             String[] resultStr = new String[numDays];
             for(int i=0;i<weatherArray.length();i++){
                 String day;
@@ -155,9 +193,9 @@ public class ForecastFragment extends Fragment {
                 double high = temperatureObject.getDouble(OWM_MAX);
                 double low = temperatureObject.getDouble(OWM_MIN);
 
-                highAndLow = formatHighLows(high, low);
+                highAndLow = formatHighLows(high, low, unitType);
 
-                resultStr[i] = day+" - "+description+" - "+highAndLow;
+                resultStr[i] = cityName+" - "+day+" - "+description+" - "+highAndLow;
             }
             return resultStr;
         }
@@ -185,13 +223,21 @@ public class ForecastFragment extends Fragment {
                 final String FORMAT_PARAM = "mode";
                 final String UNITS_PARAM = "units";
                 final String DAYS_PARAM = "cnt";
+                final String APPID_PARAM = "appid";
+                final String APPID_DATA = "e2b075d68c39dc43e16995653fcd6fd0";
 
-                Uri builtUri = Uri.parse(FORECAST_BASE_URL).buildUpon()
-                        .appendQueryParameter(QUERY_PARAM, params[0])
-                        .appendQueryParameter(FORMAT_PARAM, format)
-                        .appendQueryParameter(UNITS_PARAM, units)
-                        .appendQueryParameter(DAYS_PARAM, Integer.toString(numDays))
-                        .build();
+                Uri builtUri;
+                if(DEBUG){
+                    builtUri = Uri.parse("http://192.168.1.180/sunshine/ambarawa.php").buildUpon().build();
+                }else{
+                    builtUri = Uri.parse(FORECAST_BASE_URL).buildUpon()
+                            .appendQueryParameter(QUERY_PARAM, params[0])
+                            .appendQueryParameter(FORMAT_PARAM, format)
+                            .appendQueryParameter(UNITS_PARAM, units)
+                            .appendQueryParameter(DAYS_PARAM, Integer.toString(numDays))
+                            .appendQueryParameter(APPID_PARAM, APPID_DATA)
+                            .build();
+                }
 
                 URL url = new URL(builtUri.toString());
 
@@ -253,7 +299,9 @@ public class ForecastFragment extends Fragment {
                 for(String dayForecast : strings){
                     mForecastAdapter.add(dayForecast);
                 }
+                mForecastAdapter.notifyDataSetChanged();
             }
+
         }
     }
 }
