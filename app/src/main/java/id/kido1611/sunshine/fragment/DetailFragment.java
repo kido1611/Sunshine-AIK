@@ -59,7 +59,6 @@ public class DetailFragment extends Fragment {
         if(mShareActionProvider!=null){
             mShareActionProvider.setShareIntent(createShareForecast());
         }
-
     }
 
     private Intent createShareForecast(){
