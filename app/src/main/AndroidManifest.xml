@@ -28,6 +28,9 @@
             android:theme="@style/SettingsTheme">
 
         </activity>
+        <provider
+            android:authorities="id.kido1611.sunshine"
+            android:name=".weather.WeatherProvider"/>
     </application>
 
 </manifest>
