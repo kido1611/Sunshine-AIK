@@ -91,10 +91,13 @@ public class ForecastFragment extends Fragment
         setHasOptionsMenu(true);
     }
 
+    private String locationSetting;
+
     public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View rootView = inflater.inflate(R.layout.fragment_main, container, false);
 
-        String locationSetting = Utility.getPreferredLocation(getActivity());
+        locationSetting = Utility.getPreferredLocation(getActivity());
+        mForecastAdapter = new ForecastAdapter(getActivity(), null, 0);
 
         String sortOrder = WeatherContract.WeatherEntry.COLUMN_DATE + " ASC";
         Uri weatherForLocationUri = WeatherContract.WeatherEntry.buildWeatherLocationWithStartDate(
@@ -102,8 +105,6 @@ public class ForecastFragment extends Fragment
 
         Cursor cur = getActivity().getContentResolver().query(weatherForLocationUri,
                 null, null, null, sortOrder);
-
-        mForecastAdapter = new ForecastAdapter(getActivity(), null, 0);
 
         ListView listView = (ListView)rootView.findViewById(R.id.listview_forecast);
         listView.setAdapter(mForecastAdapter);
@@ -193,6 +194,16 @@ public class ForecastFragment extends Fragment
                 null,
                 null,
                 sortOrder);
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        String location = Utility.getPreferredLocation( getActivity() );
+        if (location != null && !location.equals(locationSetting)) {
+            onLocationChanged();
+            locationSetting = location;
+        }
     }
 
     public void onLocationChanged( ) {
