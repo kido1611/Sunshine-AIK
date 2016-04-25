@@ -12,4 +12,17 @@
 
     </style>
 
+    <style name="ForecastListStyle">
+
+    </style>
+
+    <style name="ForecastTheme" parent="AppTheme">
+        <item name="actionBarStyle">@style/ActionBarSunshine</item>
+    </style>
+    
+    <style name="ActionBarSunshine" parent="@style/Widget.AppCompat.Light.ActionBar.Solid.Inverse">
+        <item name="displayOptions">useLogo|showHome</item>
+        <item name="logo">@drawable/ic_logo</item>
+    </style>
+
 </resources>

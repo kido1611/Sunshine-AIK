@@ -1,11 +1,13 @@
 package id.kido1611.sunshine;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.os.PersistableBundle;
 import android.preference.ListPreference;
 import android.preference.Preference;
 import android.preference.PreferenceActivity;
 import android.preference.PreferenceManager;
+import android.support.annotation.Nullable;
 
 /**
  * Created by Ahmad on 4/23/2016.
@@ -40,5 +42,11 @@ public class SettingsActivity extends PreferenceActivity implements Preference.O
             preference.setSummary(stringValue);
         }
         return true;
+    }
+
+    @Nullable
+    @Override
+    public Intent getParentActivityIntent() {
+        return super.getParentActivityIntent().addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
     }
 }

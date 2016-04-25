@@ -79,8 +79,6 @@ public class ForecastFragment extends Fragment
     public static final int COL_COORD_LAT = 7;
     public static final int COL_COORD_LONG = 8;
 
-    private ForecastAdapter mForecastAdapter;
-
     public ForecastFragment(){
 
     }
@@ -92,6 +90,12 @@ public class ForecastFragment extends Fragment
     }
 
     private String locationSetting;
+    private ForecastAdapter mForecastAdapter;
+    private ListView mListView;
+    private int mPosition = ListView.INVALID_POSITION;
+    private static final String SELECTED_KEY = "selected_position";
+
+    private boolean mUseTodayLayout;
 
     public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View rootView = inflater.inflate(R.layout.fragment_main, container, false);
@@ -106,27 +110,41 @@ public class ForecastFragment extends Fragment
         Cursor cur = getActivity().getContentResolver().query(weatherForLocationUri,
                 null, null, null, sortOrder);
 
-        ListView listView = (ListView)rootView.findViewById(R.id.listview_forecast);
-        listView.setAdapter(mForecastAdapter);
-        listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+        mListView = (ListView)rootView.findViewById(R.id.listview_forecast);
+        mListView.setAdapter(mForecastAdapter);
+        mListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
 
             @Override
             public void onItemClick(AdapterView<?> adapterView, View view, int position, long l) {
-                // CursorAdapter returns a cursor at the correct position for getItem(), or null
-                // if it cannot seek to that position.
-                Cursor cursor = (Cursor) adapterView.getItemAtPosition(position);
-                if (cursor != null) {
-                    String locationSetting = Utility.getPreferredLocation(getActivity());
-                    Intent intent = new Intent(getActivity(), DetailActivity.class)
-                            .setData(WeatherContract.WeatherEntry.buildWeatherLocationWithDate(
-                                    locationSetting, cursor.getLong(COL_WEATHER_DATE)
-                            ));
-                    startActivity(intent);
-                }
+            // CursorAdapter returns a cursor at the correct position for getItem(), or null
+            // if it cannot seek to that position.
+            Cursor cursor = (Cursor) adapterView.getItemAtPosition(position);
+            if (cursor != null) {
+                String locationSetting = Utility.getPreferredLocation(getActivity());
+                ((Callback)getActivity())
+                        .onItemSelected(WeatherContract.WeatherEntry.buildWeatherLocationWithDate(
+                                locationSetting, cursor.getLong(COL_WEATHER_DATE)
+                        ));
+                mPosition = position;
+            }
             }
         });
 
+        if(savedInstanceState != null && savedInstanceState.containsKey(SELECTED_KEY)){
+            mPosition = savedInstanceState.getInt(SELECTED_KEY);
+        }
+
+        mForecastAdapter.setUseTodayLayout(mUseTodayLayout);
+
         return rootView;
+    }
+
+    @Override
+    public void onSaveInstanceState(Bundle outState) {
+        if(mPosition != ListView.INVALID_POSITION){
+            outState.putInt(SELECTED_KEY, mPosition);
+        }
+        super.onSaveInstanceState(outState);
     }
 
     @Override
@@ -214,10 +232,24 @@ public class ForecastFragment extends Fragment
     @Override
     public void onLoadFinished(Loader<Cursor> loader, Cursor data) {
         mForecastAdapter.swapCursor(data);
+        if(mPosition != ListView.INVALID_POSITION){
+            mListView.smoothScrollToPosition(mPosition);
+        }
     }
 
     @Override
     public void onLoaderReset(Loader<Cursor> loader) {
         mForecastAdapter.swapCursor(null);
+    }
+
+    public void setUseTodayLayout(boolean useTodayLayout){
+        mUseTodayLayout = useTodayLayout;
+        if(mForecastAdapter != null){
+            mForecastAdapter.setUseTodayLayout(mUseTodayLayout);
+        }
+    }
+
+    public interface Callback{
+        public void onItemSelected(Uri dateUri);
     }
 }
